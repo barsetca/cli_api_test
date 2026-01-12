@@ -1,0 +1,40 @@
+# Папка со скриншотами
+screenshots/
+
+# Виртуальное окружение Python
+venv/
+env/
+ENV/
+.venv
+
+# Кэш Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Файлы с секретными данными
+.env
+
+# Кэш файлы приложения
+currency_rate.json
+weather_cache.json
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Логи
+*.log
+
+# Временные файлы
+*.tmp
+*.temp
+
+# Файлы операционной системы
+Thumbs.db
+desktop.ini

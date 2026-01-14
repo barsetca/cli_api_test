@@ -1,0 +1,225 @@
+JSON format API response example
+
+{
+  "cod": "200",
+  "message": 0,
+  "cnt": 40,
+  "list": [
+    {
+      "dt": 1661871600,
+      "main": {
+        "temp": 296.76,
+        "feels_like": 296.98,
+        "temp_min": 296.76,
+        "temp_max": 297.87,
+        "pressure": 1015,
+        "sea_level": 1015,
+        "grnd_level": 933,
+        "humidity": 69,
+        "temp_kf": -1.11
+      },
+      "weather": [
+        {
+          "id": 500,
+          "main": "Rain",
+          "description": "light rain",
+          "icon": "10d"
+        }
+      ],
+      "clouds": {
+        "all": 100
+      },
+      "wind": {
+        "speed": 0.62,
+        "deg": 349,
+        "gust": 1.18
+      },
+      "visibility": 10000,
+      "pop": 0.32,
+      "rain": {
+        "3h": 0.26
+      },
+      "sys": {
+        "pod": "d"
+      },
+      "dt_txt": "2022-08-30 15:00:00"
+    },
+    {
+      "dt": 1661882400,
+      "main": {
+        "temp": 295.45,
+        "feels_like": 295.59,
+        "temp_min": 292.84,
+        "temp_max": 295.45,
+        "pressure": 1015,
+        "sea_level": 1015,
+        "grnd_level": 931,
+        "humidity": 71,
+        "temp_kf": 2.61
+      },
+      "weather": [
+        {
+          "id": 500,
+          "main": "Rain",
+          "description": "light rain",
+          "icon": "10n"
+        }
+      ],
+      "clouds": {
+        "all": 96
+      },
+      "wind": {
+        "speed": 1.97,
+        "deg": 157,
+        "gust": 3.39
+      },
+      "visibility": 10000,
+      "pop": 0.33,
+      "rain": {
+        "3h": 0.57
+      },
+      "sys": {
+        "pod": "n"
+      },
+      "dt_txt": "2022-08-30 18:00:00"
+    },
+    {
+      "dt": 1661893200,
+      "main": {
+        "temp": 292.46,
+        "feels_like": 292.54,
+        "temp_min": 290.31,
+        "temp_max": 292.46,
+        "pressure": 1015,
+        "sea_level": 1015,
+        "grnd_level": 931,
+        "humidity": 80,
+        "temp_kf": 2.15
+      },
+      "weather": [
+        {
+          "id": 500,
+          "main": "Rain",
+          "description": "light rain",
+          "icon": "10n"
+        }
+      ],
+      "clouds": {
+        "all": 68
+      },
+      "wind": {
+        "speed": 2.66,
+        "deg": 210,
+        "gust": 3.58
+      },
+      "visibility": 10000,
+      "pop": 0.7,
+      "rain": {
+        "3h": 0.49
+      },
+      "sys": {
+        "pod": "n"
+      },
+      "dt_txt": "2022-08-30 21:00:00"
+    },
+    ....
+    {
+      "dt": 1662292800,
+      "main": {
+        "temp": 294.93,
+        "feels_like": 294.83,
+        "temp_min": 294.93,
+        "temp_max": 294.93,
+        "pressure": 1018,
+        "sea_level": 1018,
+        "grnd_level": 935,
+        "humidity": 64,
+        "temp_kf": 0
+      },
+      "weather": [
+        {
+          "id": 804,
+          "main": "Clouds",
+          "description": "overcast clouds",
+          "icon": "04d"
+        }
+      ],
+      "clouds": {
+        "all": 88
+      },
+      "wind": {
+        "speed": 1.14,
+        "deg": 17,
+        "gust": 1.57
+      },
+      "visibility": 10000,
+      "pop": 0,
+      "sys": {
+        "pod": "d"
+      },
+      "dt_txt": "2022-09-04 12:00:00"
+    }
+  ],
+  "city": {
+    "id": 3163858,
+    "name": "Zocca",
+    "coord": {
+      "lat": 44.34,
+      "lon": 10.99
+    },
+    "country": "IT",
+    "population": 4593,
+    "timezone": 7200,
+    "sunrise": 1661834187,
+    "sunset": 1661882248
+  }
+}
+        
+    
+JSON format API response fields
+cod Internal parameter
+message Internal parameter
+cntA number of timestamps returned in the API response
+list
+list.dt Time of data forecasted, unix, UTC
+list.main
+list.main.temp Temperature. Unit Default: Kelvin, Metric: Celsius, Imperial: Fahrenheit
+list.main.feels_like This temperature parameter accounts for the human perception of weather. Unit Default: Kelvin, Metric: Celsius, Imperial: Fahrenheit
+list.main.temp_min Minimum temperature at the moment of calculation. This is minimal forecasted temperature (within large megalopolises and urban areas), use this parameter optionally. Please find more info here. Unit Default: Kelvin, Metric: Celsius, Imperial: Fahrenheit
+list.main.temp_max Maximum temperature at the moment of calculation. This is maximal forecasted temperature (within large megalopolises and urban areas), use this parameter optionally. Please find more info here. Unit Default: Kelvin, Metric: Celsius, Imperial: Fahrenheit
+list.main.pressure Atmospheric pressure on the sea level by default, hPa
+list.main.sea_level Atmospheric pressure on the sea level, hPa
+list.main.grnd_level Atmospheric pressure on the ground level, hPa
+list.main.humidity Humidity, %
+list.main.temp_kf Internal parameter
+list.weather
+list.weather.id Weather condition id
+list.weather.main Group of weather parameters (Rain, Snow, Clouds etc.)
+list.weather.description Weather condition within the group. Please find more here. You can get the output in your language. Learn more
+list.weather.icon Weather icon id
+list.clouds
+list.clouds.all Cloudiness, %
+list.wind
+list.wind.speed Wind speed. Unit Default: meter/sec, Metric: meter/sec, Imperial: miles/hour
+list.wind.deg Wind direction, degrees (meteorological)
+list.wind.gust Wind gust. Unit Default: meter/sec, Metric: meter/sec, Imperial: miles/hour
+list.visibility Average visibility, metres. The maximum value of the visibility is 10km
+list.pop Probability of precipitation. The values of the parameter vary between 0 and 1, where 0 is equal to 0%, 1 is equal to 100%
+list.rain
+list.rain.3h Rain volume for last 3 hours, mm. Please note that only mm as units of measurement are available for this parameter
+list.snow
+list.snow.3h Snow volume for last 3 hours. Please note that only mm as units of measurement are available for this parameter
+list.sys
+list.sys.pod Part of the day (n - night, d - day)
+list.dt_txt Time of data forecasted, ISO, UTC
+city
+city.id City ID. Please note that built-in geocoder functionality has been deprecated. Learn more here
+city.name City name. Please note that built-in geocoder functionality has been deprecated. Learn more here
+city.coord
+city.coord.lat Geo location, latitude
+city.coord.lon Geo location, longitude
+city.country Country code (GB, JP etc.). Please note that built-in geocoder functionality has been deprecated. Learn more here
+city.population City population
+city.timezone Shift in seconds from UTC
+city.sunrise Sunrise time, Unix, UTC
+city.sunset Sunset time, Unix, UTC

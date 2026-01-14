@@ -2,6 +2,7 @@
 
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from colorama import init, Fore, Style
 from http_client import get, post
@@ -18,7 +19,9 @@ from weather_app import (
     get_weather_by_city,
     get_weather_by_coordinates,
     get_cached_weather_by_city,
-    get_cached_weather_by_coordinates
+    get_cached_weather_by_coordinates,
+    get_coordinates,
+    get_forecast_5d3h
 )
 import requests
 
@@ -419,6 +422,146 @@ def print_weather_basic_info(weather_data: dict):
     print(f"{Fore.GREEN}Температура: {temp}°C, {weather_desc}{Style.RESET_ALL}")
 
 
+def get_forecast_5days():
+    """Получает прогноз погоды на 5 дней по названию города."""
+    city = input(f"{Fore.GREEN}Введите название города: {Style.RESET_ALL}").strip()
+    if not city:
+        print(f"{Fore.RED}Название города не может быть пустым!{Style.RESET_ALL}")
+        return
+    
+    try:
+        # Получаем координаты города
+        lat, lon = get_coordinates(city)
+        
+        # Получаем прогноз
+        forecast_data = get_forecast_5d3h(lat, lon)
+        
+        if not forecast_data:
+            print(f"{Fore.RED}Не удалось получить прогноз погоды.{Style.RESET_ALL}")
+            return
+        
+        # Группируем прогнозы по датам
+        dates_dict = {}
+        city_name = forecast_data[0].get("_city_info", {}).get("name", city)
+        
+        for item in forecast_data:
+            dt_txt = item.get("dt_txt", "")
+            if dt_txt:
+                # Парсим дату из формата "2022-08-30 15:00:00"
+                date_str = dt_txt.split()[0]  # Берем только дату
+                if date_str not in dates_dict:
+                    dates_dict[date_str] = []
+                dates_dict[date_str].append(item)
+        
+        # Сортируем даты
+        sorted_dates = sorted(dates_dict.keys())
+        
+        # Показываем список дат для выбора
+        print(f"\n{Fore.CYAN}{'='*60}")
+        print(f"{Fore.CYAN}       ВЫБОР ДАТЫ ДЛЯ ПРОГНОЗА")
+        print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}\n")
+        
+        # Русские названия дней недели
+        weekdays_ru = {
+            0: "Понедельник",
+            1: "Вторник",
+            2: "Среда",
+            3: "Четверг",
+            4: "Пятница",
+            5: "Суббота",
+            6: "Воскресенье"
+        }
+        
+        date_options = []
+        for i, date_str in enumerate(sorted_dates[:5], 1):  # Берем первые 5 дат
+            try:
+                date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                weekday = weekdays_ru[date_obj.weekday()]
+                # Форматируем дату в формат DD.MM.YYYY
+                formatted_date = date_obj.strftime("%d.%m.%Y")
+                print(f"{Fore.YELLOW}{i}{Style.RESET_ALL} - {formatted_date} - {weekday}")
+                date_options.append((date_str, formatted_date, weekday))
+            except (ValueError, KeyError):
+                print(f"{Fore.YELLOW}{i}{Style.RESET_ALL} - {date_str}")
+                date_options.append((date_str, date_str, ""))
+        
+        print()
+        
+        # Запрашиваем выбор даты
+        choice_str = input(f"{Fore.GREEN}Выберите дату (1-{len(date_options)}): {Style.RESET_ALL}").strip()
+        try:
+            choice = int(choice_str)
+            if 1 <= choice <= len(date_options):
+                selected_date_str, formatted_date, weekday = date_options[choice - 1]
+                display_forecast_for_date(forecast_data, selected_date_str, city_name, formatted_date, weekday)
+            else:
+                print(f"{Fore.RED}Неверный выбор!{Style.RESET_ALL}")
+        except ValueError:
+            print(f"{Fore.RED}Некорректный ввод!{Style.RESET_ALL}")
+            
+    except ValueError as e:
+        print(f"{Fore.RED}Ошибка: {e}{Style.RESET_ALL}")
+    except requests.RequestException as e:
+        print(f"{Fore.RED}Ошибка: {e}{Style.RESET_ALL}")
+    except Exception as e:
+        print(f"{Fore.RED}Неожиданная ошибка: {e}{Style.RESET_ALL}")
+
+
+def display_forecast_for_date(forecast_data: list, date_str: str, city_name: str, formatted_date: str, weekday: str):
+    """Отображает прогноз погоды для выбранной даты по часам."""
+    # Фильтруем данные по выбранной дате
+    date_forecasts = [
+        item for item in forecast_data
+        if item.get("dt_txt", "").startswith(date_str)
+    ]
+    
+    if not date_forecasts:
+        print(f"{Fore.RED}Нет данных для выбранной даты.{Style.RESET_ALL}")
+        return
+    
+    # Сортируем по времени
+    date_forecasts.sort(key=lambda x: x.get("dt_txt", ""))
+    
+    print(f"\n{Fore.CYAN}{'='*70}")
+    print(f"{Fore.CYAN}{' '*20}ПОРОБНЫЙ ПРОГНОЗ")
+    print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
+    print(f"{Fore.GREEN}Город: {city_name}{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}Дата: {formatted_date} - {weekday}{Style.RESET_ALL}\n")
+    
+    for item in date_forecasts:
+        dt_txt = item.get("dt_txt", "")
+        # Извлекаем время из формата "2022-08-30 15:00:00"
+        time_str = dt_txt.split()[1] if " " in dt_txt else ""
+        if time_str:
+            # Форматируем время в HH:MM
+            try:
+                time_obj = datetime.strptime(time_str, "%H:%M:%S")
+                formatted_time = time_obj.strftime("%H:%M")
+            except:
+                formatted_time = time_str[:5]  # Берем первые 5 символов
+        else:
+            formatted_time = "N/A"
+        
+        # Получаем температуру
+        temp = item.get("main", {}).get("temp", "N/A")
+        if isinstance(temp, (int, float)):
+            temp_str = f"{temp:.2f}°C"
+        else:
+            temp_str = str(temp)
+        
+        # Получаем описание погоды
+        weather_desc = "N/A"
+        weather_list = item.get("weather", [])
+        if weather_list and len(weather_list) > 0:
+            weather_desc = weather_list[0].get("description", "N/A")
+            # Капитализируем первую букву
+            weather_desc = weather_desc.capitalize()
+        
+        print(f"{Fore.YELLOW}{formatted_time}:{Style.RESET_ALL}  {temp_str}, {Fore.CYAN}{weather_desc}{Style.RESET_ALL}")
+    
+    print()
+
+
 def show_weather_menu():
     """Отображает меню погоды."""
     print(f"\n{Fore.CYAN}{'='*60}")
@@ -426,6 +569,7 @@ def show_weather_menu():
     print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
     print(f"{Fore.YELLOW}1{Style.RESET_ALL} - Погода по названию города")
     print(f"{Fore.YELLOW}2{Style.RESET_ALL} - Погода по координатам")
+    print(f"{Fore.YELLOW}3{Style.RESET_ALL} - Прогноз на 5 дней вперед")
     print(f"{Fore.YELLOW}0{Style.RESET_ALL} - Выход в основное меню")
     print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}\n")
 
@@ -442,8 +586,10 @@ def weather_menu():
             get_weather_by_city_name()
         elif choice == '2':
             get_weather_by_coords()
+        elif choice == '3':
+            get_forecast_5days()
         else:
-            print(f"{Fore.RED}Неверный выбор! Пожалуйста, выберите число от 0 до 2.{Style.RESET_ALL}")
+            print(f"{Fore.RED}Неверный выбор! Пожалуйста, выберите число от 0 до 3.{Style.RESET_ALL}")
         
         input(f"\n{Fore.YELLOW}Нажмите Enter для продолжения...{Style.RESET_ALL}")
 

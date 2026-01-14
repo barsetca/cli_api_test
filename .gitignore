@@ -38,3 +38,6 @@ weather_cache.json
 # Файлы операционной системы
 Thumbs.db
 desktop.ini
+
+# Файл с запросами пользователя
+PROMPTS.md

@@ -5,7 +5,7 @@ import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 
 import requests
 from dotenv import load_dotenv
@@ -17,6 +17,7 @@ API_KEY = os.getenv("API_KEY")
 WEATHER_CACHE_FILE = "weather_cache.json"
 GEOCODING_API_URL = "http://api.openweathermap.org/geo/1.0/direct"
 WEATHER_API_URL = "https://api.openweathermap.org/data/2.5/weather"
+FORECAST_API_URL = "https://api.openweathermap.org/data/2.5/forecast"
 
 
 def _make_request_with_retry(
@@ -394,3 +395,65 @@ def get_cached_weather_by_coordinates(lat: float, lon: float) -> Optional[Dict[s
         Словарь с данными о погоде или None, если не найдено
     """
     return _find_in_cache_by_coordinates(lat, lon)
+
+
+def get_forecast_5d3h(lat: float, lon: float) -> List[Dict[str, Any]]:
+    """
+    Получает прогноз погоды на 5 дней с интервалом 3 часа через Forecast API.
+    
+    Args:
+        lat: Широта
+        lon: Долгота
+        
+    Returns:
+        Список словарей с данными прогноза
+        
+    Raises:
+        ValueError: При ошибке получения прогноза
+        requests.RequestException: При сетевой ошибке после всех попыток
+    """
+    if not API_KEY:
+        raise ValueError("API ключ не найден. Убедитесь, что файл .env содержит API_KEY")
+    
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": API_KEY,
+        "units": "metric",
+        "lang": "ru"
+    }
+    
+    try:
+        response = _make_request_with_retry(FORECAST_API_URL, params)
+        
+        if response.status_code != 200:
+            error_msg = f"Ошибка API: статус {response.status_code}"
+            try:
+                error_data = response.json()
+                if "message" in error_data:
+                    error_msg = error_data["message"]
+                    # Русификация сообщений об ошибках
+                    if "city not found" in error_msg.lower():
+                        error_msg = "Город с таким названием не найден"
+            except:
+                pass
+            raise ValueError(error_msg)
+        
+        data = response.json()
+        
+        # Возвращаем список прогнозов
+        forecast_list = data.get("list", [])
+        city_info = data.get("city", {})
+        
+        # Добавляем информацию о городе к каждому элементу для удобства
+        result = []
+        for item in forecast_list:
+            item_with_city = item.copy()
+            item_with_city["_city_info"] = city_info
+            result.append(item_with_city)
+        
+        return result
+        
+    except requests.RequestException as e:
+        # При сетевой ошибке после всех попыток - пробрасываем исключение
+        raise requests.RequestException(f"Сетевая ошибка: {e}")

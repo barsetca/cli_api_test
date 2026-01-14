@@ -20,6 +20,10 @@ __pycache__/
 currency_rate.json
 weather_cache.json
 
+# Файлы данных Telegram бота
+users_data.json
+notifications.json
+
 # IDE и редакторы
 .vscode/
 .idea/

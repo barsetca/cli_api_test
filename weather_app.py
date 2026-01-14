@@ -570,13 +570,13 @@ def analyze_air_pollution(components: Dict[str, Any], extended: bool = False) ->
         ]
     }
     
-    # Названия компонентов для вывода
+    # Названия компонентов для вывода (с правильными подстрочными индексами)
     COMPONENT_NAMES = {
-        "so2": "SO2",
-        "no2": "NO2",
-        "pm10": "PM10",
-        "pm2_5": "PM2.5",
-        "o3": "O3",
+        "so2": "SO₂",
+        "no2": "NO₂",
+        "pm10": "PM₁₀",
+        "pm2_5": "PM₂.₅",
+        "o3": "O₃",
         "co": "CO"
     }
     

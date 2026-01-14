@@ -374,15 +374,15 @@ def format_city_comparison(city1: str, weather1: Dict[str, Any], city2: str, wea
 
 
 def get_main_menu_keyboard():
-    """Возвращает клавиатуру главного меню."""
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    """Возвращает inline-клавиатуру главного меню."""
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        types.KeyboardButton("🌡️ Текущая погода"),
-        types.KeyboardButton("📅 Прогноз на 5 дней"),
-        types.KeyboardButton("📍 Моя геолокация"),
-        types.KeyboardButton("⚖️ Сравнить города"),
-        types.KeyboardButton("📊 Расширенные данные"),
-        types.KeyboardButton("🔔 Уведомления")
+        types.InlineKeyboardButton("🌡️ Текущая погода", callback_data="menu_current_weather"),
+        types.InlineKeyboardButton("📅 Прогноз на 5 дней", callback_data="menu_forecast"),
+        types.InlineKeyboardButton("📍 Моя геолокация", callback_data="menu_location"),
+        types.InlineKeyboardButton("⚖️ Сравнить города", callback_data="menu_compare"),
+        types.InlineKeyboardButton("📊 Расширенные данные", callback_data="menu_extended"),
+        types.InlineKeyboardButton("🔔 Уведомления", callback_data="menu_notifications")
     )
     return keyboard
 
@@ -405,7 +405,7 @@ def start_command(message):
         "• Сравнение погоды в разных городах\n"
         "• Расширенные данные (погода + качество воздуха)\n"
         "• Уведомления о погоде\n\n"
-        "Выберите действие из меню ниже:"
+        "Выберите действие:"
     )
     
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu_keyboard(), parse_mode='HTML')
@@ -422,10 +422,10 @@ def back_to_menu_callback(call):
     bot.answer_callback_query(call.id)
 
 
-@bot.message_handler(func=lambda message: message.text == "🌡️ Текущая погода")
-def current_weather_handler(message):
-    """Обработчик запроса текущей погоды."""
-    user_location = get_user_location(str(message.chat.id))
+@bot.callback_query_handler(func=lambda call: call.data == "menu_current_weather")
+def menu_current_weather_callback(call):
+    """Обработчик выбора 'Текущая погода' из меню."""
+    user_location = get_user_location(str(call.message.chat.id))
     
     if user_location:
         # Предлагаем выбрать: использовать сохраненную геолокацию или ввести новую
@@ -433,17 +433,17 @@ def current_weather_handler(message):
         keyboard.add(types.InlineKeyboardButton("📍 Использовать сохраненную геолокацию", callback_data="weather_use_saved"))
         keyboard.add(types.InlineKeyboardButton("🆕 Ввести новый город/геолокацию", callback_data="weather_new_input"))
         bot.send_message(
-            message.chat.id,
+            call.message.chat.id,
             "У вас есть сохраненная геолокация. Выберите действие:",
             reply_markup=keyboard
         )
     else:
         msg = bot.send_message(
-            message.chat.id,
-            "Введите название города или отправьте геолокацию:",
-            reply_markup=types.ReplyKeyboardRemove()
+            call.message.chat.id,
+            "Введите название города или отправьте геолокацию:"
         )
         bot.register_next_step_handler(msg, process_weather_input)
+    bot.answer_callback_query(call.id)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "weather_use_saved")
@@ -587,10 +587,10 @@ def process_location_input(message):
         )
 
 
-@bot.message_handler(func=lambda message: message.text == "📅 Прогноз на 5 дней")
-def forecast_handler(message):
-    """Обработчик запроса прогноза на 5 дней."""
-    user_location = get_user_location(str(message.chat.id))
+@bot.callback_query_handler(func=lambda call: call.data == "menu_forecast")
+def menu_forecast_callback(call):
+    """Обработчик выбора 'Прогноз на 5 дней' из меню."""
+    user_location = get_user_location(str(call.message.chat.id))
     
     if user_location:
         # Предлагаем выбрать: использовать сохраненную геолокацию или ввести новую
@@ -598,17 +598,17 @@ def forecast_handler(message):
         keyboard.add(types.InlineKeyboardButton("📍 Использовать сохраненную геолокацию", callback_data="forecast_use_saved"))
         keyboard.add(types.InlineKeyboardButton("🆕 Ввести новый город/геолокацию", callback_data="forecast_new_input"))
         bot.send_message(
-            message.chat.id,
+            call.message.chat.id,
             "У вас есть сохраненная геолокация. Выберите действие:",
             reply_markup=keyboard
         )
     else:
         msg = bot.send_message(
-            message.chat.id,
-            "Введите название города или отправьте геолокацию:",
-            reply_markup=types.ReplyKeyboardRemove()
+            call.message.chat.id,
+            "Введите название города или отправьте геолокацию:"
         )
         bot.register_next_step_handler(msg, process_forecast_input)
+    bot.answer_callback_query(call.id)
 
 
 def process_forecast_input(message):
@@ -801,31 +801,32 @@ def forecast_back_callback(call):
         bot.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
 
 
-@bot.message_handler(func=lambda message: message.text == "📍 Моя геолокация")
-def location_handler(message):
-    """Обработчик сохранения геолокации."""
+@bot.callback_query_handler(func=lambda call: call.data == "menu_location")
+def menu_location_callback(call):
+    """Обработчик выбора 'Моя геолокация' из меню."""
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton("📍 Ввести новую геолокацию", callback_data="location_new_input"))
     keyboard.add(types.InlineKeyboardButton("◀️ Вернуться в меню", callback_data="back_to_menu"))
     bot.send_message(
-        message.chat.id,
+        call.message.chat.id,
         "📍 <b>Геолокация</b>",
         reply_markup=keyboard,
         parse_mode='HTML'
     )
+    bot.answer_callback_query(call.id)
 
 
 
 
-@bot.message_handler(func=lambda message: message.text == "⚖️ Сравнить города")
-def compare_cities_handler(message):
-    """Обработчик сравнения городов."""
+@bot.callback_query_handler(func=lambda call: call.data == "menu_compare")
+def menu_compare_callback(call):
+    """Обработчик выбора 'Сравнить города' из меню."""
     msg = bot.send_message(
-        message.chat.id,
-        "Введите названия двух городов через запятую (например: Москва, Санкт-Петербург):",
-        reply_markup=types.ReplyKeyboardRemove()
+        call.message.chat.id,
+        "Введите названия двух городов через запятую (например: Москва, Санкт-Петербург):"
     )
     bot.register_next_step_handler(msg, process_city_comparison)
+    bot.answer_callback_query(call.id)
 
 
 def process_city_comparison(message):
@@ -881,10 +882,10 @@ def process_city_comparison(message):
         bot.send_message(message.chat.id, f"❌ Произошла ошибка: {str(e)}", reply_markup=get_back_to_menu_keyboard())
 
 
-@bot.message_handler(func=lambda message: message.text == "📊 Расширенные данные")
-def extended_data_handler(message):
-    """Обработчик расширенных данных."""
-    user_location = get_user_location(str(message.chat.id))
+@bot.callback_query_handler(func=lambda call: call.data == "menu_extended")
+def menu_extended_callback(call):
+    """Обработчик выбора 'Расширенные данные' из меню."""
+    user_location = get_user_location(str(call.message.chat.id))
     
     if user_location:
         # Предлагаем выбрать: использовать сохраненную геолокацию или ввести новую
@@ -892,17 +893,17 @@ def extended_data_handler(message):
         keyboard.add(types.InlineKeyboardButton("📍 Использовать сохраненную геолокацию", callback_data="extended_use_saved"))
         keyboard.add(types.InlineKeyboardButton("🆕 Ввести новый город/геолокацию", callback_data="extended_new_input"))
         bot.send_message(
-            message.chat.id,
+            call.message.chat.id,
             "У вас есть сохраненная геолокация. Выберите действие:",
             reply_markup=keyboard
         )
     else:
         msg = bot.send_message(
-            message.chat.id,
-            "Введите название города или отправьте геолокацию:",
-            reply_markup=types.ReplyKeyboardRemove()
+            call.message.chat.id,
+            "Введите название города или отправьте геолокацию:"
         )
         bot.register_next_step_handler(msg, process_extended_data)
+    bot.answer_callback_query(call.id)
 
 
 def process_extended_data(message):
@@ -954,17 +955,17 @@ def process_extended_data(message):
         bot.send_message(message.chat.id, f"❌ Произошла ошибка: {str(e)}", reply_markup=get_back_to_menu_keyboard())
 
 
-@bot.message_handler(func=lambda message: message.text == "🔔 Уведомления")
-def notifications_handler(message):
-    """Обработчик управления уведомлениями."""
+@bot.callback_query_handler(func=lambda call: call.data == "menu_notifications")
+def menu_notifications_callback(call):
+    """Обработчик выбора 'Уведомления' из меню."""
     notifications = load_notifications()
-    user_id = str(message.chat.id)
+    user_id = str(call.message.chat.id)
     
     if user_id in notifications and notifications[user_id].get("enabled", False):
         keyboard = types.InlineKeyboardMarkup()
         keyboard.add(types.InlineKeyboardButton("❌ Отключить уведомления", callback_data="notif_disable"))
         bot.send_message(
-            message.chat.id,
+            call.message.chat.id,
             "🔔 Уведомления включены.\nВы будете получать уведомления о погоде каждые 2 часа.",
             reply_markup=keyboard
         )
@@ -972,10 +973,11 @@ def notifications_handler(message):
         keyboard = types.InlineKeyboardMarkup()
         keyboard.add(types.InlineKeyboardButton("✅ Включить уведомления", callback_data="notif_enable"))
         bot.send_message(
-            message.chat.id,
+            call.message.chat.id,
             "🔕 Уведомления отключены.\nНажмите кнопку, чтобы включить уведомления о погоде.",
             reply_markup=keyboard
         )
+    bot.answer_callback_query(call.id)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "notif_enable")

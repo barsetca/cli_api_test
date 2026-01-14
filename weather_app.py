@@ -15,10 +15,18 @@ load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
 WEATHER_CACHE_FILE = "weather_cache.json"
+CACHE_DIR = Path(".cache")
+CACHE_TTL = 600  # 10 минут в секундах
+
 GEOCODING_API_URL = "https://api.openweathermap.org/geo/1.0/direct"
 WEATHER_API_URL = "https://api.openweathermap.org/data/2.5/weather"
 FORECAST_API_URL = "https://api.openweathermap.org/data/2.5/forecast"
 AIR_POLLUTION_API_URL = "https://api.openweathermap.org/data/2.5/air_pollution"
+
+# Имена endpoints для кэша
+WEATHER_ENDPOINT = "weather"
+FORECAST_ENDPOINT = "forecast"
+AIR_POLLUTION_ENDPOINT = "air_pollution"
 
 
 def _make_request_with_retry(
@@ -78,6 +86,113 @@ def _make_request_with_retry(
         raise last_exception
     
     raise requests.RequestException("Не удалось выполнить запрос")
+
+
+def _get_cache_key(lat: float, lon: float, endpoint: str) -> str:
+    """
+    Генерирует ключ кэша для координат и endpoint.
+    
+    Args:
+        lat: Широта
+        lon: Долгота
+        endpoint: Название endpoint (weather, forecast, air_pollution)
+        
+    Returns:
+        Строка ключа для файла кэша
+    """
+    # Округляем координаты до 4 знаков после запятой для нормализации
+    lat_rounded = round(lat, 4)
+    lon_rounded = round(lon, 4)
+    return f"{lat_rounded}_{lon_rounded}_{endpoint}.json"
+
+
+def _get_cache_path(lat: float, lon: float, endpoint: str) -> Path:
+    """
+    Возвращает путь к файлу кэша.
+    
+    Args:
+        lat: Широта
+        lon: Долгота
+        endpoint: Название endpoint
+        
+    Returns:
+        Path к файлу кэша
+    """
+    # Создаем директорию кэша, если её нет
+    CACHE_DIR.mkdir(exist_ok=True)
+    
+    cache_key = _get_cache_key(lat, lon, endpoint)
+    return CACHE_DIR / cache_key
+
+
+def _load_api_cache(lat: float, lon: float, endpoint: str) -> Optional[Any]:
+    """
+    Загружает данные из кэша API.
+    
+    Args:
+        lat: Широта
+        lon: Долгота
+        endpoint: Название endpoint
+        
+    Returns:
+        Данные из кэша или None, если кэш не найден или устарел
+    """
+    cache_path = _get_cache_path(lat, lon, endpoint)
+    
+    if not cache_path.exists():
+        return None
+    
+    try:
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            cache_data = json.load(f)
+            
+        # Проверяем время кэша
+        cached_at_str = cache_data.get("cached_at")
+        if not cached_at_str:
+            return None
+        
+        cached_at = datetime.fromisoformat(cached_at_str)
+        age = datetime.now() - cached_at
+        
+        # Если кэш старше 10 минут - удаляем и возвращаем None
+        if age.total_seconds() > CACHE_TTL:
+            cache_path.unlink()
+            return None
+        
+        return cache_data.get("data")
+        
+    except (json.JSONDecodeError, ValueError, KeyError, OSError):
+        # Если файл поврежден - удаляем его
+        try:
+            cache_path.unlink()
+        except:
+            pass
+        return None
+
+
+def _save_api_cache(lat: float, lon: float, endpoint: str, data: Any) -> None:
+    """
+    Сохраняет данные в кэш API.
+    
+    Args:
+        lat: Широта
+        lon: Долгота
+        endpoint: Название endpoint
+        data: Данные для сохранения
+    """
+    cache_path = _get_cache_path(lat, lon, endpoint)
+    
+    cache_data = {
+        "cached_at": datetime.now().isoformat(),
+        "data": data
+    }
+    
+    try:
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+    except OSError:
+        # Игнорируем ошибки записи
+        pass
 
 
 def _load_cache() -> list:
@@ -272,6 +387,11 @@ def get_weather_by_coordinates(lat: float, lon: float) -> Dict[str, Any]:
         ValueError: При ошибке получения погоды
         requests.RequestException: При сетевой ошибке после всех попыток
     """
+    # Проверяем кэш
+    cached_data = _load_api_cache(lat, lon, WEATHER_ENDPOINT)
+    if cached_data is not None:
+        return cached_data
+    
     if not API_KEY:
         raise ValueError("API ключ не найден. Убедитесь, что файл .env содержит API_KEY")
     
@@ -301,7 +421,10 @@ def get_weather_by_coordinates(lat: float, lon: float) -> Dict[str, Any]:
         
         data = response.json()
         
-        # Сохраняем в кэш
+        # Сохраняем в кэш API
+        _save_api_cache(lat, lon, WEATHER_ENDPOINT, data)
+        
+        # Сохраняем в старый кэш (для совместимости с CLI)
         _save_cache_entry(data, lat=lat, lon=lon)
         
         return data
@@ -413,6 +536,11 @@ def get_forecast_5d3h(lat: float, lon: float) -> List[Dict[str, Any]]:
         ValueError: При ошибке получения прогноза
         requests.RequestException: При сетевой ошибке после всех попыток
     """
+    # Проверяем кэш
+    cached_data = _load_api_cache(lat, lon, FORECAST_ENDPOINT)
+    if cached_data is not None:
+        return cached_data
+    
     if not API_KEY:
         raise ValueError("API ключ не найден. Убедитесь, что файл .env содержит API_KEY")
     
@@ -453,6 +581,9 @@ def get_forecast_5d3h(lat: float, lon: float) -> List[Dict[str, Any]]:
             item_with_city["_city_info"] = city_info
             result.append(item_with_city)
         
+        # Сохраняем в кэш API
+        _save_api_cache(lat, lon, FORECAST_ENDPOINT, result)
+        
         return result
         
     except requests.RequestException as e:
@@ -475,6 +606,11 @@ def get_air_pollution(lat: float, lon: float) -> Dict[str, Any]:
         ValueError: При ошибке получения данных
         requests.RequestException: При сетевой ошибке после всех попыток
     """
+    # Проверяем кэш
+    cached_data = _load_api_cache(lat, lon, AIR_POLLUTION_ENDPOINT)
+    if cached_data is not None:
+        return cached_data
+    
     if not API_KEY:
         raise ValueError("API ключ не найден. Убедитесь, что файл .env содержит API_KEY")
     
@@ -501,7 +637,10 @@ def get_air_pollution(lat: float, lon: float) -> Dict[str, Any]:
         
         # Возвращаем компоненты из первого элемента списка
         if "list" in data and len(data["list"]) > 0:
-            return data["list"][0].get("components", {})
+            result = data["list"][0].get("components", {})
+            # Сохраняем в кэш API
+            _save_api_cache(lat, lon, AIR_POLLUTION_ENDPOINT, result)
+            return result
         else:
             raise ValueError("Данные о качестве воздуха не найдены в ответе API")
         

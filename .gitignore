@@ -19,6 +19,7 @@ __pycache__/
 # Кэш файлы приложения
 currency_rate.json
 weather_cache.json
+.cache/
 
 # Файлы данных Telegram бота
 users_data.json

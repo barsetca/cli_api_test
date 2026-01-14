@@ -15,9 +15,10 @@ load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
 WEATHER_CACHE_FILE = "weather_cache.json"
-GEOCODING_API_URL = "http://api.openweathermap.org/geo/1.0/direct"
+GEOCODING_API_URL = "https://api.openweathermap.org/geo/1.0/direct"
 WEATHER_API_URL = "https://api.openweathermap.org/data/2.5/weather"
 FORECAST_API_URL = "https://api.openweathermap.org/data/2.5/forecast"
+AIR_POLLUTION_API_URL = "https://api.openweathermap.org/data/2.5/air_pollution"
 
 
 def _make_request_with_retry(
@@ -457,3 +458,172 @@ def get_forecast_5d3h(lat: float, lon: float) -> List[Dict[str, Any]]:
     except requests.RequestException as e:
         # При сетевой ошибке после всех попыток - пробрасываем исключение
         raise requests.RequestException(f"Сетевая ошибка: {e}")
+
+
+def get_air_pollution(lat: float, lon: float) -> Dict[str, Any]:
+    """
+    Получает данные о качестве воздуха через Air Pollution API.
+    
+    Args:
+        lat: Широта
+        lon: Долгота
+        
+    Returns:
+        Словарь с данными о качестве воздуха (list[0].components)
+        
+    Raises:
+        ValueError: При ошибке получения данных
+        requests.RequestException: При сетевой ошибке после всех попыток
+    """
+    if not API_KEY:
+        raise ValueError("API ключ не найден. Убедитесь, что файл .env содержит API_KEY")
+    
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": API_KEY
+    }
+    
+    try:
+        response = _make_request_with_retry(AIR_POLLUTION_API_URL, params)
+        
+        if response.status_code != 200:
+            error_msg = f"Ошибка API: статус {response.status_code}"
+            try:
+                error_data = response.json()
+                if "message" in error_data:
+                    error_msg = error_data["message"]
+            except:
+                pass
+            raise ValueError(error_msg)
+        
+        data = response.json()
+        
+        # Возвращаем компоненты из первого элемента списка
+        if "list" in data and len(data["list"]) > 0:
+            return data["list"][0].get("components", {})
+        else:
+            raise ValueError("Данные о качестве воздуха не найдены в ответе API")
+        
+    except requests.RequestException as e:
+        raise requests.RequestException(f"Сетевая ошибка: {e}")
+
+
+def analyze_air_pollution(components: Dict[str, Any], extended: bool = False) -> Dict[str, Any]:
+    """
+    Анализирует качество воздуха на основе компонентов и сравнивает с нормами.
+    
+    Args:
+        components: Словарь с компонентами загрязнения воздуха
+        extended: Если True, возвращает расширенную информацию
+        
+    Returns:
+        Словарь с общим статусом и деталями:
+        - overall_status: общий статус (строка)
+        - overall_index: общий индекс AQI (1-5)
+        - exceeded_norms: список превышений нормы (если extended=True)
+        - within_norms: список в пределах нормы (если extended=True)
+    """
+    # Таблица норм из изображения
+    AQI_LEVELS = {
+        "so2": [
+            (0, 20, 1, "Хорошо"),
+            (20, 80, 2, "Удовлетворительно"),
+            (80, 250, 3, "Умеренно"),
+            (250, 350, 4, "Плохо"),
+            (350, float('inf'), 5, "Очень плохо")
+        ],
+        "no2": [
+            (0, 40, 1, "Хорошо"),
+            (40, 70, 2, "Удовлетворительно"),
+            (70, 150, 3, "Умеренно"),
+            (150, 200, 4, "Плохо"),
+            (200, float('inf'), 5, "Очень плохо")
+        ],
+        "pm10": [
+            (0, 20, 1, "Хорошо"),
+            (20, 50, 2, "Удовлетворительно"),
+            (50, 100, 3, "Умеренно"),
+            (100, 200, 4, "Плохо"),
+            (200, float('inf'), 5, "Очень плохо")
+        ],
+        "pm2_5": [
+            (0, 10, 1, "Хорошо"),
+            (10, 25, 2, "Удовлетворительно"),
+            (25, 50, 3, "Умеренно"),
+            (50, 75, 4, "Плохо"),
+            (75, float('inf'), 5, "Очень плохо")
+        ],
+        "o3": [
+            (0, 60, 1, "Хорошо"),
+            (60, 100, 2, "Удовлетворительно"),
+            (100, 140, 3, "Умеренно"),
+            (140, 180, 4, "Плохо"),
+            (180, float('inf'), 5, "Очень плохо")
+        ],
+        "co": [
+            (0, 4400, 1, "Хорошо"),
+            (4400, 9400, 2, "Удовлетворительно"),
+            (9400, 12400, 3, "Умеренно"),
+            (12400, 15400, 4, "Плохо"),
+            (15400, float('inf'), 5, "Очень плохо")
+        ]
+    }
+    
+    # Названия компонентов для вывода
+    COMPONENT_NAMES = {
+        "so2": "SO2",
+        "no2": "NO2",
+        "pm10": "PM10",
+        "pm2_5": "PM2.5",
+        "o3": "O3",
+        "co": "CO"
+    }
+    
+    # Определяем уровень для каждого компонента
+    component_levels = {}
+    max_index = 1
+    max_status = "Хорошо"
+    
+    for component_key, value in components.items():
+        if component_key in AQI_LEVELS and value is not None:
+            # Находим уровень для данного значения
+            for min_val, max_val, index, status in AQI_LEVELS[component_key]:
+                if min_val <= value < max_val:
+                    component_levels[component_key] = {
+                        "value": value,
+                        "index": index,
+                        "status": status,
+                        "name": COMPONENT_NAMES.get(component_key, component_key.upper())
+                    }
+                    # Обновляем максимальный индекс (худший показатель)
+                    if index > max_index:
+                        max_index = index
+                        max_status = status
+                    break
+    
+    # Определяем общий статус на основе худшего показателя
+    result = {
+        "overall_status": max_status,
+        "overall_index": max_index
+    }
+    
+    if extended:
+        # Формируем список превышений нормы (индекс >= 2)
+        exceeded = []
+        for comp_key, comp_data in component_levels.items():
+            if comp_data["index"] >= 2:
+                exceeded.append({
+                    "name": comp_data["name"],
+                    "value": comp_data["value"],
+                    "status": comp_data["status"],
+                    "index": comp_data["index"]
+                })
+        
+        # Сортируем по индексу (от худшего к лучшему)
+        exceeded.sort(key=lambda x: x["index"], reverse=True)
+        
+        result["exceeded_norms"] = exceeded
+        result["component_levels"] = component_levels
+    
+    return result

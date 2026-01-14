@@ -21,7 +21,9 @@ from weather_app import (
     get_cached_weather_by_city,
     get_cached_weather_by_coordinates,
     get_coordinates,
-    get_forecast_5d3h
+    get_forecast_5d3h,
+    get_air_pollution,
+    analyze_air_pollution
 )
 import requests
 
@@ -523,7 +525,7 @@ def display_forecast_for_date(forecast_data: list, date_str: str, city_name: str
     date_forecasts.sort(key=lambda x: x.get("dt_txt", ""))
     
     print(f"\n{Fore.CYAN}{'='*70}")
-    print(f"{Fore.CYAN}{' '*20}ПОРОБНЫЙ ПРОГНОЗ")
+    print(f"{Fore.CYAN}{' '*20}ПОДРОБНЫЙ ПРОГНОЗ")
     print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
     print(f"{Fore.GREEN}Город: {city_name}{Style.RESET_ALL}")
     print(f"{Fore.GREEN}Дата: {formatted_date} - {weekday}{Style.RESET_ALL}\n")
@@ -562,6 +564,167 @@ def display_forecast_for_date(forecast_data: list, date_str: str, city_name: str
     print()
 
 
+def get_extended_weather_data():
+    """Получает расширенные данные о погоде и качестве воздуха."""
+    print(f"\n{Fore.CYAN}{'='*60}")
+    print(f"{Fore.CYAN}   ВЫБОР СПОСОБА ВВОДА ДАННЫХ")
+    print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}1{Style.RESET_ALL} - По названию города")
+    print(f"{Fore.YELLOW}2{Style.RESET_ALL} - По координатам")
+    print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}\n")
+    
+    choice = input(f"{Fore.GREEN}Выберите способ: {Style.RESET_ALL}").strip()
+    
+    lat = None
+    lon = None
+    city_name = None
+    
+    try:
+        if choice == '1':
+            city = input(f"{Fore.GREEN}Введите название города: {Style.RESET_ALL}").strip()
+            if not city:
+                print(f"{Fore.RED}Название города не может быть пустым!{Style.RESET_ALL}")
+                return
+            lat, lon = get_coordinates(city)
+            city_name = city
+        elif choice == '2':
+            lat_str = input(f"{Fore.GREEN}Введите широту: {Style.RESET_ALL}").strip()
+            lon_str = input(f"{Fore.GREEN}Введите долготу: {Style.RESET_ALL}").strip()
+            if not lat_str or not lon_str:
+                print(f"{Fore.RED}Координаты не могут быть пустыми!{Style.RESET_ALL}")
+                return
+            try:
+                lat = float(lat_str)
+                lon = float(lon_str)
+            except ValueError:
+                print(f"{Fore.RED}Некорректные значения координат!{Style.RESET_ALL}")
+                return
+        else:
+            print(f"{Fore.RED}Неверный выбор!{Style.RESET_ALL}")
+            return
+        
+        # Получаем данные о погоде
+        weather_data = get_weather_by_coordinates(lat, lon)
+        if not city_name:
+            city_name = weather_data.get("name", "Неизвестно")
+        
+        # Получаем данные о качестве воздуха
+        air_components = get_air_pollution(lat, lon)
+        air_analysis = analyze_air_pollution(air_components, extended=True)
+        
+        # Выводим расширенные данные
+        display_extended_weather(weather_data, air_analysis, city_name)
+        
+    except ValueError as e:
+        print(f"{Fore.RED}Ошибка: {e}{Style.RESET_ALL}")
+    except requests.RequestException as e:
+        print(f"{Fore.RED}Ошибка: {e}{Style.RESET_ALL}")
+    except Exception as e:
+        print(f"{Fore.RED}Неожиданная ошибка: {e}{Style.RESET_ALL}")
+
+
+def display_extended_weather(weather_data: dict, air_analysis: dict, city_name: str):
+    """Отображает расширенные данные о погоде и качестве воздуха."""
+    print(f"\n{Fore.CYAN}{'='*70}")
+    print(f"{Fore.CYAN}{' '*20}РАСШИРЕННЫЕ ДАННЫЕ О ПОГОДЕ")
+    print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
+    print(f"{Fore.GREEN}Город: {city_name}{Style.RESET_ALL}\n")
+    
+    # Данные о погоде
+    main_data = weather_data.get("main", {})
+    temp = main_data.get("temp", "N/A")
+    humidity = main_data.get("humidity", "N/A")
+    pressure = main_data.get("pressure", "N/A")
+    
+    wind_data = weather_data.get("wind", {})
+    wind_speed = wind_data.get("speed", "N/A")
+    
+    visibility = weather_data.get("visibility", "N/A")
+    if isinstance(visibility, (int, float)):
+        visibility_km = visibility / 1000.0
+        visibility_str = f"{visibility_km:.1f} км"
+    else:
+        visibility_str = str(visibility)
+    
+    sys_data = weather_data.get("sys", {})
+    sunrise = sys_data.get("sunrise")
+    sunset = sys_data.get("sunset")
+    
+    # Форматируем время восхода и заката
+    sunrise_str = "N/A"
+    sunset_str = "N/A"
+    if sunrise:
+        try:
+            sunrise_dt = datetime.fromtimestamp(sunrise)
+            sunrise_str = sunrise_dt.strftime("%H:%M")
+        except:
+            sunrise_str = str(sunrise)
+    if sunset:
+        try:
+            sunset_dt = datetime.fromtimestamp(sunset)
+            sunset_str = sunset_dt.strftime("%H:%M")
+        except:
+            sunset_str = str(sunset)
+    
+    # UV индекс (обычно не входит в стандартный ответ, используем значение по умолчанию или из дополнительных данных)
+    # Для получения UV индекса нужен отдельный API запрос, но для примера можно использовать значение из weather если есть
+    uv_index = weather_data.get("uv", None)
+    if uv_index is None:
+        # Если UV индекс недоступен, можно использовать значение по умолчанию или сделать отдельный запрос
+        # Для простоты используем значение 0 или "N/A"
+        uv_index = 0
+    
+    # Определяем уровень UV индекса
+    uv_level = "Низкий"
+    if uv_index is not None and isinstance(uv_index, (int, float)):
+        if uv_index >= 11:
+            uv_level = "Экстремальный"
+        elif uv_index >= 8:
+            uv_level = "Очень высокий"
+        elif uv_index >= 6:
+            uv_level = "Высокий"
+        elif uv_index >= 3:
+            uv_level = "Умеренный"
+        else:
+            uv_level = "Низкий"
+        uv_display = f"{uv_index:.1f} ({uv_level})"
+    else:
+        uv_display = "N/A"
+    
+    # Выводим данные о погоде
+    print(f"{Fore.YELLOW}Температура:{Style.RESET_ALL} {temp}°C")
+    print(f"{Fore.YELLOW}Влажность:{Style.RESET_ALL} {humidity}%")
+    print(f"{Fore.YELLOW}Давление:{Style.RESET_ALL} {pressure} гПа")
+    print(f"{Fore.YELLOW}Ветер:{Style.RESET_ALL} {wind_speed} м/с")
+    print(f"{Fore.YELLOW}Видимость:{Style.RESET_ALL}  {visibility_str}")
+    print(f"{Fore.YELLOW}Восход солнца:{Style.RESET_ALL} {sunrise_str}")
+    print(f"{Fore.YELLOW}Закат солнца:{Style.RESET_ALL}  {sunset_str}")
+    print(f"{Fore.YELLOW}UV индекс:{Style.RESET_ALL} {uv_display}\n")
+    
+    # Данные о качестве воздуха
+    print(f"{Fore.CYAN}Качество воздуха:{Style.RESET_ALL}")
+    overall_status = air_analysis.get("overall_status", "N/A")
+    print(f"{Fore.YELLOW}Общий статус воздуха:{Style.RESET_ALL} {overall_status}")
+    
+    # Превышение нормы
+    exceeded_norms = air_analysis.get("exceeded_norms", [])
+    if exceeded_norms:
+        # Берем первое (худшее) превышение для вывода
+        first_exceeded = exceeded_norms[0]
+        print(f"{Fore.YELLOW}Превышение нормы:{Style.RESET_ALL} {first_exceeded['name']} : {first_exceeded['value']:.2f} мкг/м3 - {first_exceeded['status']}")
+    else:
+        print(f"{Fore.YELLOW}Превышение нормы:{Style.RESET_ALL} Нет превышений")
+    
+    # Условия (описание погоды)
+    weather_list = weather_data.get("weather", [])
+    conditions = "N/A"
+    if weather_list and len(weather_list) > 0:
+        conditions = weather_list[0].get("description", "N/A")
+        conditions = conditions.capitalize()
+    
+    print(f"{Fore.YELLOW} Условия:{Style.RESET_ALL} {conditions}\n")
+
+
 def show_weather_menu():
     """Отображает меню погоды."""
     print(f"\n{Fore.CYAN}{'='*60}")
@@ -570,6 +733,7 @@ def show_weather_menu():
     print(f"{Fore.YELLOW}1{Style.RESET_ALL} - Погода по названию города")
     print(f"{Fore.YELLOW}2{Style.RESET_ALL} - Погода по координатам")
     print(f"{Fore.YELLOW}3{Style.RESET_ALL} - Прогноз на 5 дней вперед")
+    print(f"{Fore.YELLOW}4{Style.RESET_ALL} - Расширенные данные")
     print(f"{Fore.YELLOW}0{Style.RESET_ALL} - Выход в основное меню")
     print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}\n")
 
@@ -588,8 +752,10 @@ def weather_menu():
             get_weather_by_coords()
         elif choice == '3':
             get_forecast_5days()
+        elif choice == '4':
+            get_extended_weather_data()
         else:
-            print(f"{Fore.RED}Неверный выбор! Пожалуйста, выберите число от 0 до 3.{Style.RESET_ALL}")
+            print(f"{Fore.RED}Неверный выбор! Пожалуйста, выберите число от 0 до 4.{Style.RESET_ALL}")
         
         input(f"\n{Fore.YELLOW}Нажмите Enter для продолжения...{Style.RESET_ALL}")
 

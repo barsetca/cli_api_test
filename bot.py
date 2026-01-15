@@ -1110,4 +1110,16 @@ if __name__ == "__main__":
     notification_thread.start()
     
     print("Бот запущен...")
-    bot.infinity_polling()
+    
+    # Запускаем бота с увеличенными таймаутами и обработкой ошибок
+    while True:
+        try:
+            # Увеличиваем таймауты для long polling
+            # timeout - таймаут для обычных запросов (30 секунд)
+            # long_polling_timeout - таймаут для long polling (60 секунд)
+            bot.infinity_polling(timeout=30, long_polling_timeout=60)
+        except Exception as e:
+            # Логируем ошибку, но продолжаем работу
+            print(f"Ошибка при polling: {e}")
+            print("Переподключение через 5 секунд...")
+            time.sleep(5)  # Ждем 5 секунд перед переподключением
